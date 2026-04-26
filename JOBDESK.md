@@ -1,13 +1,8 @@
 # Pembagian Job 2 Orang (Berurutan)
 
 Dokumen ini dibuat untuk skema kerja **berurutan**:
-- **Orang 1 (kamu)** mengerjakan fondasi utama dulu (**70%**).
-- Setelah milestone Orang 1 selesai, **Orang 2** melanjutkan bagian pelengkap (**30%**).
-
-## Komposisi Jobdesk
-
-- Orang 1: **70%**
-- Orang 2: **30%**
+- **Orang 1 (kamu)** mengerjakan fondasi utama dulu.
+- Setelah milestone Orang 1 selesai, **Orang 2** melanjutkan bagian pelengkap.
 
 ---
 
@@ -20,7 +15,7 @@ Dokumen ini dibuat untuk skema kerja **berurutan**:
 
 ---
 
-## Orang 1 (70%) - Fondasi Sistem End-to-End
+## Orang 1 - Fondasi Sistem End-to-End
 
 Peran: **Backend Lead + Integrasi Arsitektur**
 
@@ -44,16 +39,16 @@ Peran: **Backend Lead + Integrasi Arsitektur**
 
 ### Milestone Orang 1
 
-- **Milestone A (Hari 1-2):**
+- **Milestone A :**
 	- Struktur proyek + server WebSocket hidup.
 	- Koneksi ke service gRPC sukses.
 
-- **Milestone B (Hari 3-4):**
+- **Milestone B :**
 	- Stream gRPC -> WebSocket event berjalan stabil.
 	- Command dari WebSocket -> gRPC berhasil.
 	- Kontrak payload **freeze v1**.
 
-- **Milestone C (Hari 5):**
+- **Milestone C :**
 	- Error handling dasar + validasi command.
 	- Handover ke Orang 2 dengan dokumentasi singkat.
 
@@ -67,7 +62,7 @@ Peran: **Backend Lead + Integrasi Arsitektur**
 
 ---
 
-## Orang 2 (30%) - UI Event-Driven + Finalisasi Demo
+## Orang 2 - UI Event-Driven + Finalisasi Demo
 
 Peran: **Frontend Lead + Packaging Presentasi**
 
@@ -98,10 +93,10 @@ Orang 2 baru mulai setelah:
 
 ### Milestone Orang 2
 
-- **Milestone D (Hari 6):**
+- **Milestone D :**
 	- UI connect WebSocket + render event dasar.
 
-- **Milestone E (Hari 7):**
+- **Milestone E :**
 	- 3 komponen dinamis lengkap + command panel aktif.
 	- Final rehearsal demo.
 
