@@ -1,5 +1,4 @@
 import * as grpc from '@grpc/grpc-js';
-import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
 import { User } from '../shared/types';
 import { signToken, verifyToken } from '../shared/utils/jwt.utils';
@@ -24,7 +23,7 @@ export const authHandlers = {
     }
 
     const user: User = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       username,
       passwordHash: hashPassword(password),
     };

@@ -49,3 +49,57 @@ Jika sukses, log akan menampilkan:
 
 - `gRPC connectivity check passed (Auth/Catalog/Bidding)`
 - `WebSocket gateway listening on ws://localhost:8080`
+
+## Step 2 Status
+
+- Selesai: command bridge WebSocket -> gRPC (unary)
+- Selesai: stream bridge gRPC -> WebSocket (auction + catalog)
+- Selesai: server-initiated heartbeat event
+
+## Kontrak Pesan WebSocket (Draft v1)
+
+Semua command dari browser dikirim dalam bentuk JSON:
+
+```json
+{
+	"type": "auction.place_bid",
+	"requestId": "req-123",
+	"payload": {
+		"auction_id": "...",
+		"bidder_name": "Alice",
+		"amount": 600000000,
+		"token": "..."
+	}
+}
+```
+
+### Command yang tersedia
+
+- `auth.register`
+- `auth.login`
+- `catalog.get_items`
+- `catalog.open_auction`
+- `stream.catalog.start`
+- `stream.catalog.stop`
+- `auction.join`
+- `auction.leave`
+- `auction.place_bid`
+- `auction.get_result`
+
+### Event dari server
+
+- `system.connected`
+- `system.heartbeat`
+- `catalog.event`
+- `auction.update`
+- `catalog.stream.ended`
+- `auction.stream.ended`
+- `command.error`
+
+### Response sukses command
+
+Server mengirim event result dengan pola `*.result`, misalnya:
+
+- `auth.login.result`
+- `catalog.get_items.result`
+- `auction.place_bid.result`

@@ -30,17 +30,39 @@ const biddingProto = loadProto('bidding.proto') as any;
 export const authClient = new authProto.auth.AuthService(
   env.grpcAuthHost,
   grpc.credentials.createInsecure()
-) as AnyClient;
+) as any;
 
 export const catalogClient = new catalogProto.catalog.CatalogService(
   env.grpcCatalogHost,
   grpc.credentials.createInsecure()
-) as AnyClient;
+) as any;
 
 export const biddingClient = new biddingProto.bidding.BiddingService(
   env.grpcBiddingHost,
   grpc.credentials.createInsecure()
-) as AnyClient;
+) as any;
+
+export function unaryCall<TResponse = any>(
+  client: any,
+  methodName: string,
+  request: Record<string, unknown>
+): Promise<TResponse> {
+  return new Promise<TResponse>((resolve, reject) => {
+    const method = client?.[methodName];
+    if (typeof method !== 'function') {
+      reject(new Error(`Unknown gRPC method: ${methodName}`));
+      return;
+    }
+
+    method.call(client, request, (err: any, response: TResponse) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
 
 function waitReady(client: AnyClient, label: string): Promise<void> {
   const deadline = Date.now() + 3000;

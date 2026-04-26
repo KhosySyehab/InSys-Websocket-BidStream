@@ -1,7 +1,7 @@
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
-import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { AuctionRoom, BIDDING_SERVICE_PORT } from '../shared/types';
 
 const BIDDING_PROTO_PATH = path.join(__dirname, '../../proto/bidding.proto');
@@ -64,7 +64,7 @@ export const catalogHandlers = {
       });
     }
 
-    const itemId = `item-${uuidv4().slice(0, 8)}`;
+    const itemId = `item-${randomUUID().slice(0, 8)}`;
     itemDatabase.set(itemId, {
       id: itemId,
       name: String(name).trim(),
@@ -136,7 +136,7 @@ export const catalogHandlers = {
       });
     }
 
-    const auctionId = uuidv4();
+    const auctionId = randomUUID();
     const room: AuctionRoom = {
       auctionId,
       itemId: item_id,
