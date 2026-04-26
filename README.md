@@ -56,6 +56,31 @@ Jika sukses, log akan menampilkan:
 - Selesai: stream bridge gRPC -> WebSocket (auction + catalog)
 - Selesai: server-initiated heartbeat event
 
+## Step 3 Status
+
+- Selesai: kontrak command v1 dibekukan dengan validasi payload ketat
+- Selesai: smoke test otomatis untuk skenario sukses + error
+
+## Menjalankan Smoke Test WebSocket
+
+1. Jalankan stack:
+
+```bash
+npm run dev:stack
+```
+
+2. Pada terminal lain jalankan smoke test:
+
+```bash
+npm run smoke:ws
+```
+
+Smoke test memverifikasi:
+
+- alur sukses: register, login, get items, open auction, join auction
+- event stream masuk: `auction.update`
+- alur error: validasi amount tidak valid, token invalid
+
 ## Kontrak Pesan WebSocket (Draft v1)
 
 Semua command dari browser dikirim dalam bentuk JSON:

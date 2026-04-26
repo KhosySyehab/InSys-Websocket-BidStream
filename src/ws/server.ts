@@ -2,17 +2,12 @@ import * as grpc from '@grpc/grpc-js';
 import { WebSocketServer, WebSocket } from 'ws';
 import { env } from '../config/env';
 import { authClient, biddingClient, catalogClient, unaryCall } from '../grpc/clients';
+import { AVAILABLE_COMMANDS, GatewayCommand, validateCommand } from './protocol';
 
 export interface GatewayEvent {
   type: string;
   payload: unknown;
   timestamp: number;
-}
-
-interface GatewayCommand {
-  type: string;
-  requestId?: string;
-  payload?: Record<string, any>;
 }
 
 interface ClientSession {
@@ -242,18 +237,7 @@ export function startWebSocketServer(): WebSocketServer {
       type: 'system.connected',
       payload: {
         message: 'Connected to BidStream WebSocket Gateway',
-        availableCommands: [
-          'auth.register',
-          'auth.login',
-          'catalog.get_items',
-          'catalog.open_auction',
-          'stream.catalog.start',
-          'stream.catalog.stop',
-          'auction.join',
-          'auction.leave',
-          'auction.place_bid',
-          'auction.get_result',
-        ],
+        availableCommands: AVAILABLE_COMMANDS,
       },
       timestamp: Date.now(),
     };
@@ -269,15 +253,16 @@ export function startWebSocketServer(): WebSocketServer {
         return;
       }
 
-      if (!parsed?.type || typeof parsed.type !== 'string') {
-        sendError(client, parsed?.requestId, 'Command type is required');
+      const validated = validateCommand(parsed);
+      if (!validated.ok) {
+        sendError(client, parsed?.requestId, validated.message);
         return;
       }
 
       try {
-        await handleCommand(client, session, parsed);
+        await handleCommand(client, session, validated.command);
       } catch (err: any) {
-        sendError(client, parsed.requestId, toMessage(err), {
+        sendError(client, validated.command.requestId, toMessage(err), {
           grpcCode: err?.code ?? null,
         });
       }

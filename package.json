@@ -11,6 +11,7 @@
     "grpc:catalog": "npm --prefix grpc-backend run catalog",
     "grpc:bidding": "npm --prefix grpc-backend run bidding",
     "dev:stack": "concurrently -k -n AUTH,CATALOG,BIDDING,GATEWAY -c green,blue,magenta,cyan \"npm:grpc:auth\" \"npm:grpc:catalog\" \"npm:grpc:bidding\" \"npm:dev\"",
+    "smoke:ws": "node scripts/ws-smoke.js",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "check": "tsc --noEmit"
