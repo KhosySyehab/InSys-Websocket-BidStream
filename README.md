@@ -61,6 +61,16 @@ Jika sukses, log akan menampilkan:
 - Selesai: kontrak command v1 dibekukan dengan validasi payload ketat
 - Selesai: smoke test otomatis untuk skenario sukses + error
 
+## Step 4 Status
+
+- Selesai: semua outbound event memakai envelope versi protokol `v1`
+- Selesai: smoke test diperluas untuk skenario `bid-too-low` dan `auction closed`
+
+## Step 5 Status
+
+- Selesai: frontend handover template (3 komponen dinamis + command panel)
+- Selesai: tabel mapping field event v1 untuk implementasi UI lanjutan
+
 ## Menjalankan Smoke Test WebSocket
 
 1. Jalankan stack:
@@ -80,6 +90,32 @@ Smoke test memverifikasi:
 - alur sukses: register, login, get items, open auction, join auction
 - event stream masuk: `auction.update`
 - alur error: validasi amount tidak valid, token invalid
+- alur error bisnis: bid di bawah minimum increment
+- alur error state: bid setelah auction ditutup
+
+## Menjalankan Frontend Handover Template
+
+1. Jalankan stack backend + gateway:
+
+```bash
+npm run dev:stack
+```
+
+2. Pada terminal lain jalankan static web server:
+
+```bash
+npm run dev:web
+```
+
+3. Buka browser ke:
+
+- `http://localhost:5173`
+
+Template ini menampilkan 3 komponen dinamis wajib:
+
+- `Auction Status` (state + countdown)
+- `Live Bid Panel` (highest bidder + highest amount + mini chart)
+- `Activity Log` (event stream realtime)
 
 ## Kontrak Pesan WebSocket (Draft v1)
 
@@ -121,6 +157,17 @@ Semua command dari browser dikirim dalam bentuk JSON:
 - `auction.stream.ended`
 - `command.error`
 
+Semua event/response gateway memiliki envelope:
+
+```json
+{
+	"version": "v1",
+	"type": "...",
+	"payload": {},
+	"timestamp": 1710000000000
+}
+```
+
 ### Response sukses command
 
 Server mengirim event result dengan pola `*.result`, misalnya:
@@ -128,3 +175,35 @@ Server mengirim event result dengan pola `*.result`, misalnya:
 - `auth.login.result`
 - `catalog.get_items.result`
 - `auction.place_bid.result`
+
+## Mapping Field Event v1 (Freeze)
+
+### `auction.update`
+
+- `payload.auction_id`: string
+- `payload.highest_bidder`: string
+- `payload.highest_amount`: number
+- `payload.remaining_seconds`: number
+- `payload.event_type`: string (`SNAPSHOT`, `BID_UPDATE`, `AUCTION_CLOSING`, `AUCTION_CLOSED`, `TIMER_TICK`)
+
+### `catalog.event`
+
+- `payload.auction_id`: string
+- `payload.item_id`: string
+- `payload.item_name`: string
+- `payload.starting_price`: number
+- `payload.duration_seconds`: number
+- `payload.event_type`: string (`AUCTION_OPENED`, `AUCTION_CLOSING`, `AUCTION_CLOSED`)
+
+### `command.error`
+
+- `payload.requestId`: string | null
+- `payload.ok`: boolean (`false`)
+- `payload.message`: string
+- `payload.details`: object | null
+
+### `*.result`
+
+- `payload.requestId`: string | null
+- `payload.ok`: boolean
+- `payload.data`: object

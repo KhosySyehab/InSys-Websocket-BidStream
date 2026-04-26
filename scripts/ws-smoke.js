@@ -61,6 +61,10 @@ function send(ws, message) {
   ws.send(JSON.stringify(message));
 }
 
+function hasV1Envelope(msg) {
+  return msg && msg.version === 'v1' && typeof msg.type === 'string';
+}
+
 async function main() {
   const ws = await openSocket();
   const username = randomUser();
@@ -69,6 +73,7 @@ async function main() {
   console.log('[smoke] Connected:', URL);
 
   const connected = await waitFor(ws, (m) => m.type === 'system.connected');
+  assert(hasV1Envelope(connected), 'system.connected missing v1 envelope');
   assert(Array.isArray(connected.payload?.availableCommands), 'system.connected missing availableCommands');
 
   send(ws, { type: 'auth.register', requestId: 'r1', payload: { username, password } });
@@ -77,6 +82,7 @@ async function main() {
 
   send(ws, { type: 'auth.login', requestId: 'r2', payload: { username, password } });
   const loginRes = await waitFor(ws, (m) => m.type === 'auth.login.result' && m.payload?.requestId === 'r2');
+  assert(hasV1Envelope(loginRes), 'auth.login.result missing v1 envelope');
   const token = loginRes.payload?.data?.token;
   assert(typeof token === 'string' && token.length > 10, 'auth.login token missing');
 
@@ -100,7 +106,22 @@ async function main() {
   assert(joinRes.payload?.ok === true, 'auction.join did not return ok=true');
 
   const snapshot = await waitFor(ws, (m) => m.type === 'auction.update');
+  assert(hasV1Envelope(snapshot), 'auction.update missing v1 envelope');
   assert(snapshot.payload?.event_type, 'auction.update missing event_type');
+  const currentHighest = Number(snapshot.payload?.highest_amount || 0);
+  const lowBidAmount = currentHighest + 1;
+
+  // Error scenario: bid too low from gRPC business rule
+  send(ws, {
+    type: 'auction.place_bid',
+    requestId: 'e0',
+    payload: { auction_id: auctionId, bidder_name: username, amount: lowBidAmount, token },
+  });
+  const lowBidErr = await waitFor(ws, (m) => m.type === 'command.error' && m.payload?.requestId === 'e0');
+  assert(
+    String(lowBidErr.payload?.message || '').toLowerCase().includes('minimum next bid'),
+    'Expected low bid business-rule error'
+  );
 
   // Error scenario: invalid bid amount caught by gateway validation
   send(ws, {
@@ -117,15 +138,36 @@ async function main() {
     'Expected positive amount validation error'
   );
 
-  // Error scenario: invalid token from gRPC layer
-  send(ws, {
+  // Error scenario: invalid token from gRPC layer (isolated socket so main stream remains active)
+  const wsInvalid = await openSocket();
+  await waitFor(wsInvalid, (m) => m.type === 'system.connected');
+  send(wsInvalid, {
     type: 'auction.join',
     requestId: 'e2',
     payload: { auction_id: auctionId, token: 'invalid-token' },
   });
   await waitFor(
-    ws,
+    wsInvalid,
     (m) => m.type === 'command.error' && m.payload?.requestId === 'e2'
+  );
+  wsInvalid.close();
+
+  // Wait until auction is closed, then verify further bid is rejected.
+  await waitFor(
+    ws,
+    (m) => m.type === 'auction.update' && m.payload?.event_type === 'AUCTION_CLOSED',
+    15000
+  );
+
+  send(ws, {
+    type: 'auction.place_bid',
+    requestId: 'e3',
+    payload: { auction_id: auctionId, bidder_name: username, amount: 700000000, token },
+  });
+  const closedErr = await waitFor(ws, (m) => m.type === 'command.error' && m.payload?.requestId === 'e3');
+  assert(
+    String(closedErr.payload?.message || '').toLowerCase().includes('closed'),
+    'Expected closed auction error after AUCTION_CLOSED event'
   );
 
   ws.close();

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BidStream Realtime Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+  <div class="shell">
+    <header class="topbar">
+      <h1>BidStream Realtime Console</h1>
+      <p>WebSocket v1 monitoring and control bridge</p>
+      <span id="conn-pill" class="pill disconnected">Disconnected</span>
+    </header>
+
+    <section class="grid">
+      <article class="card status-card">
+        <h2>Auction Status</h2>
+        <div class="status-row">
+          <span class="label">Auction ID</span>
+          <span id="auction-id" class="value">-</span>
+        </div>
+        <div class="status-row">
+          <span class="label">State</span>
+          <span id="auction-state" class="value state pending">PENDING</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Remaining</span>
+          <span id="remaining-seconds" class="value">-</span>
+        </div>
+      </article>
+
+      <article class="card live-card">
+        <h2>Live Bid Panel</h2>
+        <div class="stat-box">
+          <span class="label">Highest Bidder</span>
+          <strong id="highest-bidder">-</strong>
+        </div>
+        <div class="stat-box">
+          <span class="label">Highest Amount</span>
+          <strong id="highest-amount">Rp0</strong>
+        </div>
+        <div class="sparkline-wrap">
+          <canvas id="bid-chart" width="520" height="120"></canvas>
+        </div>
+      </article>
+
+      <article class="card control-card">
+        <h2>Command Panel</h2>
+        <div class="quick-row">
+          <button id="btn-role-admin" class="btn btn-muted">Preset Admin</button>
+          <button id="btn-role-bidder" class="btn btn-muted">Preset Bidder</button>
+        </div>
+        <div class="quick-row">
+          <button id="btn-demo-admin" class="btn btn-accent">Quick Demo Admin</button>
+          <button id="btn-demo-bidder" class="btn btn-accent">Quick Demo Bidder</button>
+        </div>
+        <div class="control-grid">
+          <input id="username" placeholder="username" value="alice_ui" />
+          <input id="password" type="password" placeholder="password" value="pass123" />
+          <button id="btn-register" class="btn">Register</button>
+          <button id="btn-login" class="btn">Login</button>
+
+          <button id="btn-items" class="btn">Get Items</button>
+          <input id="item-id" placeholder="item_id" />
+          <input id="duration" type="number" min="1" placeholder="duration_seconds" value="20" />
+          <button id="btn-open" class="btn">Open Auction</button>
+
+          <button id="btn-feed-start" class="btn">Start Catalog Feed</button>
+          <button id="btn-feed-stop" class="btn btn-muted">Stop Catalog Feed</button>
+          <input id="join-auction-id" placeholder="auction_id" />
+          <button id="btn-join" class="btn">Join Auction</button>
+
+          <input id="bid-amount" type="number" min="1" placeholder="amount" />
+          <button id="btn-bid" class="btn btn-accent">Place Bid</button>
+        </div>
+      </article>
+
+      <article class="card log-card">
+        <h2>Activity Log</h2>
+        <ul id="event-log"></ul>
+      </article>
+    </section>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

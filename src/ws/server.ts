@@ -2,9 +2,10 @@ import * as grpc from '@grpc/grpc-js';
 import { WebSocketServer, WebSocket } from 'ws';
 import { env } from '../config/env';
 import { authClient, biddingClient, catalogClient, unaryCall } from '../grpc/clients';
-import { AVAILABLE_COMMANDS, GatewayCommand, validateCommand } from './protocol';
+import { AVAILABLE_COMMANDS, GatewayCommand, PROTOCOL_VERSION, validateCommand } from './protocol';
 
 export interface GatewayEvent {
+  version: string;
   type: string;
   payload: unknown;
   timestamp: number;
@@ -16,9 +17,15 @@ interface ClientSession {
   catalogStream?: grpc.ClientReadableStream<any>;
 }
 
-function safeSend(client: WebSocket, event: GatewayEvent): void {
+function safeSend(client: WebSocket, event: Omit<GatewayEvent, 'version'> | GatewayEvent): void {
   if (client.readyState !== WebSocket.OPEN) return;
-  client.send(JSON.stringify(event));
+  const withVersion: GatewayEvent = {
+    version: (event as GatewayEvent).version || PROTOCOL_VERSION,
+    type: event.type,
+    payload: event.payload,
+    timestamp: event.timestamp,
+  };
+  client.send(JSON.stringify(withVersion));
 }
 
 function sendResult(client: WebSocket, requestId: string | undefined, type: string, payload: unknown): void {
@@ -233,7 +240,7 @@ export function startWebSocketServer(): WebSocketServer {
   wss.on('connection', (client) => {
     const session: ClientSession = {};
 
-    const welcomeEvent: GatewayEvent = {
+    const welcomeEvent = {
       type: 'system.connected',
       payload: {
         message: 'Connected to BidStream WebSocket Gateway',

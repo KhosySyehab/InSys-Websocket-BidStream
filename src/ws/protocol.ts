@@ -4,6 +4,8 @@ export interface GatewayCommand {
   payload?: Record<string, any>;
 }
 
+export const PROTOCOL_VERSION = 'v1';
+
 export const AVAILABLE_COMMANDS = [
   'auth.register',
   'auth.login',
@@ -42,6 +44,10 @@ export function validateCommand(input: unknown): { ok: true; command: GatewayCom
 
   if (command.requestId !== undefined && typeof command.requestId !== 'string') {
     return { ok: false, message: 'requestId must be a string when provided' };
+  }
+
+  if (typeof command.requestId === 'string' && command.requestId.trim().length === 0) {
+    return { ok: false, message: 'requestId must not be empty when provided' };
   }
 
   if (!AVAILABLE_COMMANDS.includes(command.type as any)) {
