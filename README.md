@@ -1,6 +1,8 @@
 # InSys-Websocket-BidStream
 
-WebSocket gateway untuk menjembatani browser (frontend) dengan layanan gRPC pada project sebelumnya.
+WebSocket gateway untuk menjembatani browser (frontend) dengan layanan gRPC BidStream.
+
+Repo ini sekarang sudah standalone (tidak bergantung ke repo lain), karena source backend gRPC sudah disertakan di folder `grpc-backend`.
 
 ## Step 1 Status
 
@@ -8,20 +10,21 @@ WebSocket gateway untuk menjembatani browser (frontend) dengan layanan gRPC pada
 - Selesai: WebSocket server hidup di port `8080` (default).
 - Selesai: startup check koneksi ke 3 service gRPC (`Auth`, `Catalog`, `Bidding`).
 
+## Struktur Utama
+
+- `grpc-backend/`: backend gRPC (Auth, Catalog, Bidding)
+- `src/`: WebSocket Gateway
+
 ## Prasyarat
 
-1. Jalankan service gRPC dari repo `InSys-gRPC-BidStream`:
-	- `npm run auth`
-	- `npm run catalog`
-	- `npm run bidding`
-2. Gunakan Node.js 18+.
+1. Gunakan Node.js 18+.
 
 ## Menjalankan Gateway
 
-1. Install dependency:
+1. Setup semua dependency (root + grpc-backend):
 
 ```bash
-npm install
+npm run setup
 ```
 
 2. Salin environment file:
@@ -30,7 +33,13 @@ npm install
 cp .env.example .env
 ```
 
-3. Jalankan mode development:
+3. Jalankan seluruh stack (3 service gRPC + gateway) dari repo ini:
+
+```bash
+npm run dev:stack
+```
+
+Atau jalankan gateway saja:
 
 ```bash
 npm run dev

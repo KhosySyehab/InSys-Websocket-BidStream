@@ -1,7 +1,7 @@
 # Pembagian Job 2 Orang (Berurutan)
 
 Dokumen ini dibuat untuk skema kerja **berurutan**:
-- **Orang 1 (kamu)** mengerjakan fondasi utama dulu.
+- **Orang 1** mengerjakan fondasi utama dulu.
 - Setelah milestone Orang 1 selesai, **Orang 2** melanjutkan bagian pelengkap.
 
 ---

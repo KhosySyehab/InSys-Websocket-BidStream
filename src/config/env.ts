@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const defaultProtoDir = path.resolve(process.cwd(), '../InSys-gRPC-BidStream/proto');
+const defaultProtoDir = path.resolve(process.cwd(), './grpc-backend/proto');
 
 export const env = {
   wsPort: Number(process.env.WS_PORT || 8080),
