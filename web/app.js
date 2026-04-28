@@ -1,332 +1,276 @@
 const WS_URL = 'ws://localhost:8080';
-
-const dom = {
-  connPill: document.getElementById('conn-pill'),
-  auctionId: document.getElementById('auction-id'),
-  auctionState: document.getElementById('auction-state'),
-  remainingSeconds: document.getElementById('remaining-seconds'),
-  highestBidder: document.getElementById('highest-bidder'),
-  highestAmount: document.getElementById('highest-amount'),
-  eventLog: document.getElementById('event-log'),
-  chart: document.getElementById('bid-chart'),
-  username: document.getElementById('username'),
-  password: document.getElementById('password'),
-  itemId: document.getElementById('item-id'),
-  duration: document.getElementById('duration'),
-  joinAuctionId: document.getElementById('join-auction-id'),
-  bidAmount: document.getElementById('bid-amount'),
-  btnRegister: document.getElementById('btn-register'),
-  btnLogin: document.getElementById('btn-login'),
-  btnItems: document.getElementById('btn-items'),
-  btnOpen: document.getElementById('btn-open'),
-  btnFeedStart: document.getElementById('btn-feed-start'),
-  btnFeedStop: document.getElementById('btn-feed-stop'),
-  btnJoin: document.getElementById('btn-join'),
-  btnBid: document.getElementById('btn-bid'),
-  btnRoleAdmin: document.getElementById('btn-role-admin'),
-  btnRoleBidder: document.getElementById('btn-role-bidder'),
-  btnDemoAdmin: document.getElementById('btn-demo-admin'),
-  btnDemoBidder: document.getElementById('btn-demo-bidder'),
-};
-
 let ws;
-let token = '';
-let bidSeries = [];
-let latestAuctionId = '';
+const reconnectDelay = 3000;
+let activeAuctionId = '';
+let fetchedItemId = ''; 
+let token = ''; // Store backend JWT token
+let demoUser = ''; // Store generated username
 
-function now() {
-  return new Date().toLocaleTimeString();
-}
-
-function requestId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function logEvent(type, payload) {
-  const li = document.createElement('li');
-  li.textContent = `[${now()}] ${type} ${JSON.stringify(payload)}`;
-  dom.eventLog.prepend(li);
-  while (dom.eventLog.children.length > 80) {
-    dom.eventLog.removeChild(dom.eventLog.lastChild);
-  }
-}
+// DOM Elements
+const dom = {
+  connStatus: document.getElementById('conn-status'),
+  auctionState: document.getElementById('auction-state'),
+  highestAmount: document.getElementById('highest-amount'),
+  highestBidder: document.getElementById('highest-bidder'),
+  eventLog: document.getElementById('event-log'),
+  
+  btnOpen: document.getElementById('btn-open'),
+  joinAuctionId: document.getElementById('join-auction-id'),
+  btnJoin: document.getElementById('btn-join'),
+  bidAmount: document.getElementById('bid-amount'),
+  btnBid: document.getElementById('btn-bid'),
+  commandResponse: document.getElementById('command-response')
+};
 
 function formatRupiah(amount) {
   return `Rp${Number(amount || 0).toLocaleString('id-ID')}`;
 }
 
-function setState(rawState) {
-  const state = String(rawState || 'PENDING').toUpperCase();
-  dom.auctionState.textContent = state;
-  dom.auctionState.className = `value state ${state.toLowerCase()}`;
+function showResponseStatus(message, isError = false) {
+  dom.commandResponse.style.color = isError ? '#ca0032' : '#00ca65';
+  dom.commandResponse.textContent = message;
+  setTimeout(() => { dom.commandResponse.textContent = ''; }, 4000);
 }
 
-function drawChart() {
-  const ctx = dom.chart.getContext('2d');
-  const w = dom.chart.width;
-  const h = dom.chart.height;
-  ctx.clearRect(0, 0, w, h);
-
-  ctx.fillStyle = '#0f1621';
-  ctx.fillRect(0, 0, w, h);
-
-  if (bidSeries.length < 2) return;
-
-  const min = Math.min(...bidSeries);
-  const max = Math.max(...bidSeries);
-  const span = max - min || 1;
-
-  ctx.beginPath();
-  ctx.strokeStyle = '#2aa8ff';
-  ctx.lineWidth = 2;
-
-  bidSeries.forEach((v, i) => {
-    const x = (i / (bidSeries.length - 1)) * (w - 20) + 10;
-    const y = h - 10 - ((v - min) / span) * (h - 20);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-
-  ctx.stroke();
-}
-
-function send(type, payload) {
+function sendCommand(type, payload = {}) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
-    logEvent('client.error', { message: 'WebSocket not connected' });
+    alert("Cannot send command: WebSocket is disconnected.");
     return;
   }
-
-  ws.send(
-    JSON.stringify({
-      type,
-      requestId: requestId(type),
-      payload,
-    })
-  );
+  const message = JSON.stringify({
+    type: type,
+    requestId: `req-${Math.floor(Math.random() * 10000)}`,
+    payload: payload
+  });
+  ws.send(message);
 }
 
-function connect() {
+function logActivity(message) {
+  const li = document.createElement('li');
+  const timestamp = new Date().toLocaleTimeString();
+  li.textContent = `[${timestamp}] ${message}`;
+  
+  dom.eventLog.appendChild(li);
+  dom.eventLog.scrollTop = dom.eventLog.scrollHeight;
+  while (dom.eventLog.children.length > 50) {
+    dom.eventLog.removeChild(dom.eventLog.firstChild);
+  }
+}
+
+function setAuctionState(state) {
+  const stateStr = String(state).toUpperCase();
+  dom.auctionState.textContent = stateStr;
+  dom.auctionState.className = `state ${stateStr.toLowerCase()}`;
+}
+
+function connectWebSocket() {
   ws = new WebSocket(WS_URL);
 
   ws.onopen = () => {
-    dom.connPill.textContent = 'Connected';
-    dom.connPill.className = 'pill connected';
-    logEvent('system.local', { message: `Connected to ${WS_URL}` });
+    dom.connStatus.textContent = 'Connected';
+    dom.connStatus.className = 'status-conn connected';
+    logActivity('System: WebSocket connected successfully to ' + WS_URL);
+    
+    // Automatically fetch catalog items
+    sendCommand('catalog.get_items');
+    
+    // Automatically register and login a demo user so we get a valid JWT token
+    demoUser = `user_${Math.floor(Math.random() * 9999)}`;
+    sendCommand('auth.register', { username: demoUser, password: 'password123' });
+    setTimeout(() => {
+       sendCommand('auth.login', { username: demoUser, password: 'password123' });
+    }, 500);
   };
 
   ws.onclose = () => {
-    dom.connPill.textContent = 'Disconnected';
-    dom.connPill.className = 'pill disconnected';
-    logEvent('system.local', { message: 'Socket closed, reconnect in 2s' });
-    setTimeout(connect, 2000);
+    dom.connStatus.textContent = 'Disconnected, retrying...';
+    dom.connStatus.className = 'status-conn disconnected';
+    logActivity('System Error: Connection closed. Attempting reconnect in 3s...');
+    setTimeout(connectWebSocket, reconnectDelay);
   };
 
-  ws.onerror = () => {
-    logEvent('system.local', { message: 'Socket error' });
-  };
-
-  ws.onmessage = (evt) => {
-    let msg;
+  ws.onmessage = (event) => {
     try {
-      msg = JSON.parse(evt.data);
-    } catch {
-      return;
+      const data = JSON.parse(event.data);
+      handleIncomingEvent(data);
+    } catch (e) {
+      console.warn('Failed to parse incoming message:', event.data);
     }
+  };
+}
 
-    const type = msg.type;
-    const payload = msg.payload || {};
-    logEvent(type, payload);
+function handleIncomingEvent(data) {
+  // 1. Raw Message without Type
+  if (!data.type && data.message) {
+    logActivity(`SERVER INIT: ${data.message}`);
+    return;
+  }
+  
+  // 2. Global Error Catching
+  if (data.ok === false) {
+    const errorMsg = data.message || (data.payload && data.payload.message) || "Unknown Error";
+    showResponseStatus(`Error: ${errorMsg}`, true);
+    logActivity(`ERROR: ${errorMsg}`);
+    return;
+  }
+  
+  if (data.type && data.type.includes('error')) {
+    const errorMsg = (data.payload && data.payload.message) || data.message || "Error";
+    showResponseStatus(errorMsg, true);
+    logActivity(`ERROR: ${errorMsg}`);
+    return;
+  }
 
-    if (type === 'auth.login.result' && payload.ok && payload.data?.token) {
-      token = payload.data.token;
-    }
+  const type = data.type;
+  const payload = data.payload || {};
 
-    if (type === 'catalog.open_auction.result' && payload.ok && payload.data?.auction_id) {
-      const auctionId = payload.data.auction_id;
-      latestAuctionId = auctionId;
-      dom.joinAuctionId.value = auctionId;
-      dom.auctionId.textContent = auctionId;
-      setState('OPEN');
-    }
-
-    if (type === 'catalog.get_items.result' && payload.ok && Array.isArray(payload.data?.items)) {
-      const firstItem = payload.data.items[0];
-      if (firstItem?.id && !dom.itemId.value.trim()) {
-        dom.itemId.value = firstItem.id;
+  switch(type) {
+    case 'auth.login.result':
+      const authData = payload.data || data.data;
+      if (authData && authData.token) {
+        token = authData.token;
+        logActivity(`System: Got valid authentication token for ${demoUser}.`);
       }
-    }
+      break;
 
-    if (type === 'catalog.event') {
-      dom.auctionId.textContent = payload.auction_id || '-';
-      const eventType = String(payload.event_type || '').toUpperCase();
-      if (eventType.includes('OPENED')) setState('OPEN');
-      if (eventType.includes('CLOSING')) setState('CLOSING');
-      if (eventType.includes('CLOSED')) setState('CLOSED');
-    }
-
-    if (type === 'auction.update') {
-      dom.auctionId.textContent = payload.auction_id || dom.auctionId.textContent;
-      dom.highestBidder.textContent = payload.highest_bidder || '-';
-      dom.highestAmount.textContent = formatRupiah(payload.highest_amount);
-      dom.remainingSeconds.textContent = `${payload.remaining_seconds ?? '-'}s`;
-
-      const eventType = String(payload.event_type || '').toUpperCase();
-      if (eventType.includes('CLOSING')) setState('CLOSING');
-      else if (eventType.includes('CLOSED')) setState('CLOSED');
-      else setState('OPEN');
-
-      const amount = Number(payload.highest_amount || 0);
-      if (amount > 0) {
-        bidSeries.push(amount);
-        if (bidSeries.length > 40) bidSeries = bidSeries.slice(-40);
-        drawChart();
+    case 'catalog.event':
+      const evType = String(payload.event_type || '').toUpperCase();
+      if (evType.includes('OPENED')) {
+         setAuctionState('OPEN');
+         // Auto-sync the auction ID for other browser tabs!
+         if (payload.auction_id) {
+            activeAuctionId = payload.auction_id;
+            dom.joinAuctionId.value = activeAuctionId;
+         }
       }
-    }
+      if (evType.includes('CLOSING')) setAuctionState('CLOSING');
+      if (evType.includes('CLOSED')) setAuctionState('CLOSED');
+      logActivity(`CATALOG EVENT: Auction ${payload.auction_id} is ${evType}`);
+      break;
 
-    if (type === 'command.error') {
-      logEvent('ui.alert', { level: 'error', message: payload.message });
-    }
-  };
+    case 'auction.update':
+       if (payload.highest_amount !== undefined) {
+          dom.highestAmount.textContent = formatRupiah(payload.highest_amount);
+          dom.highestBidder.textContent = payload.highest_bidder || 'Anonymous';
+       }
+       if (payload.event_type) {
+          const auctionEv = String(payload.event_type || '').toUpperCase();
+          if (auctionEv.includes('CLOSING')) setAuctionState('CLOSING');
+          else if (auctionEv.includes('CLOSED')) setAuctionState('CLOSED');
+          else setAuctionState('OPEN');
+       }
+       break;
+
+    case 'system.alert': 
+    case 'system.connected':
+      if (payload.message || data.message) {
+        logActivity(`SYSTEM: ${payload.message || data.message}`);
+      }
+      break;
+
+    case 'catalog.get_items.result':
+      if (payload && payload.data && Array.isArray(payload.data.items) && payload.data.items.length > 0) {
+        fetchedItemId = payload.data.items[0].id;
+        logActivity(`System: Fetched Catalog Item ID ready for auction!`);
+      } else if (payload && Array.isArray(payload.items) && payload.items.length > 0) {
+        fetchedItemId = payload.items[0].id;
+        logActivity(`System: Fetched Catalog Item ID ready for auction!`);
+      } else if (data.data && Array.isArray(data.data.items) && data.data.items.length > 0) {
+        fetchedItemId = data.data.items[0].id;
+        logActivity(`System: Fetched Catalog Item ID ready for auction!`);
+      }
+      break;
+
+    case 'catalog.open_auction.result':
+      const resultData = payload.data || data.data; 
+      if (resultData && resultData.auction_id) {
+         activeAuctionId = resultData.auction_id;
+         dom.joinAuctionId.value = activeAuctionId; 
+         logActivity(`Action Success: Auction Opened -> ${activeAuctionId}`);
+         setAuctionState('OPEN');
+         // Broadcast to other tabs!
+         localStorage.setItem('sync_auction_id', activeAuctionId);
+      }
+      break;
+
+    // Provide explicit feedback for Join and Bid actions so UI doesn't seem unresponsive
+    case 'auction.joined':
+    case 'auction.join.result':
+      const joinData = payload.data || data.data || payload; 
+      logActivity(`Action Success: Joined Auction ${joinData.auction_id || activeAuctionId}`);
+      showResponseStatus("Joined Successfully!");
+      break;
+
+    case 'auction.place_bid.result':
+      logActivity(`Action Success: Bid Placed of Rp${dom.bidAmount.value}`);
+      showResponseStatus("Bid Placed!");
+      break;
+
+    default:
+      if (type && !type.includes('.result') && !type.includes('.heartbeat')) {
+         logActivity(`EVENT [${type}]: ${JSON.stringify(payload)}`);
+      }
+      break;
+  }
 }
 
-function applyRole(role) {
-  if (role === 'admin') {
-    dom.username.value = `admin_${Date.now().toString().slice(-4)}`;
-    dom.password.value = 'pass123';
-    dom.duration.value = '20';
-    logEvent('ui.role', { role: 'admin', hint: 'Buka lelang dan share auction_id ke bidder' });
+// Interacting
+dom.btnOpen.addEventListener('click', () => {
+  if (!fetchedItemId) {
+    alert("I haven't fetched any items from the catalog yet! Trying to fetch one first...");
+    sendCommand('catalog.get_items');
     return;
   }
-
-  dom.username.value = `bidder_${Date.now().toString().slice(-4)}`;
-  dom.password.value = 'pass123';
-  dom.bidAmount.value = '100000000';
-  logEvent('ui.role', { role: 'bidder', hint: 'Join auction lalu kirim bid' });
-}
-
-async function runQuickDemoAdmin() {
-  applyRole('admin');
-  send('auth.register', {
-    username: dom.username.value.trim(),
-    password: dom.password.value,
+  sendCommand('catalog.open_auction', {
+    item_id: fetchedItemId,
+    duration_seconds: 180 // Increased to 3 minutes for a longer bidding fight demo
   });
-  await sleep(300);
+  showResponseStatus("Sent: catalog.open_auction");
+});
 
-  send('auth.login', {
-    username: dom.username.value.trim(),
-    password: dom.password.value,
+dom.btnJoin.addEventListener('click', () => {
+  const auctionId = dom.joinAuctionId.value.trim();
+  if (!auctionId) return alert("Provide an Auction ID");
+  // The backend requires the token to verify who is joining
+  sendCommand('auction.join', { 
+    auction_id: auctionId,
+    token: token 
   });
-  await sleep(300);
+  showResponseStatus("Sent: auction.join");
+});
 
-  send('stream.catalog.start', {});
-  await sleep(200);
+dom.btnBid.addEventListener('click', () => {
+  const amountStr = dom.bidAmount.value.trim();
+  if (!amountStr) return alert("Enter bid amount");
+  
+  // The backend requires the token user to perfectly match the bidder_name in the bid
+  sendCommand('auction.place_bid', {
+    auction_id: dom.joinAuctionId.value.trim() || activeAuctionId,
+    bidder_name: demoUser,
+    amount: parseInt(amountStr, 10),
+    token: token
+  });
+  showResponseStatus("Sent: auction.place_bid");
+});
 
-  send('catalog.get_items', {});
-  await sleep(500);
-
-  if (!dom.itemId.value.trim()) {
-    logEvent('ui.demo', { message: 'item_id belum tersedia, klik Get Items sekali lagi' });
-    return;
+// Front-End Demo Hack: Sync Auction ID across browser tabs instantly!
+window.addEventListener('storage', (e) => {
+  if (e.key === 'sync_auction_id' && e.newValue) {
+    activeAuctionId = e.newValue;
+    dom.joinAuctionId.value = activeAuctionId;
+    setAuctionState('OPEN');
+    logActivity(`System Sync: Received new Auction ID from Admin window!`);
   }
+});
 
-  send('catalog.open_auction', {
-    item_id: dom.itemId.value.trim(),
-    duration_seconds: Number(dom.duration.value || 20),
-  });
-}
-
-async function runQuickDemoBidder() {
-  applyRole('bidder');
-  send('auth.register', {
-    username: dom.username.value.trim(),
-    password: dom.password.value,
-  });
-  await sleep(300);
-
-  send('auth.login', {
-    username: dom.username.value.trim(),
-    password: dom.password.value,
-  });
-  await sleep(300);
-
-  if (!dom.joinAuctionId.value.trim() && latestAuctionId) {
-    dom.joinAuctionId.value = latestAuctionId;
+// Init
+window.addEventListener('DOMContentLoaded', () => {
+  // If this tab was opened late, grab the already synced ID from storage!
+  const latecomerId = localStorage.getItem('sync_auction_id');
+  if (latecomerId) {
+    activeAuctionId = latecomerId;
+    dom.joinAuctionId.value = activeAuctionId;
   }
-
-  if (!dom.joinAuctionId.value.trim()) {
-    logEvent('ui.demo', { message: 'Masukkan auction_id dulu atau jalankan Quick Demo Admin' });
-    return;
-  }
-
-  send('auction.join', {
-    auction_id: dom.joinAuctionId.value.trim(),
-    token,
-  });
-}
-
-function wireControls() {
-  dom.btnRegister.onclick = () => {
-    send('auth.register', {
-      username: dom.username.value.trim(),
-      password: dom.password.value,
-    });
-  };
-
-  dom.btnLogin.onclick = () => {
-    send('auth.login', {
-      username: dom.username.value.trim(),
-      password: dom.password.value,
-    });
-  };
-
-  dom.btnItems.onclick = () => {
-    send('catalog.get_items', {});
-  };
-
-  dom.btnOpen.onclick = () => {
-    send('catalog.open_auction', {
-      item_id: dom.itemId.value.trim(),
-      duration_seconds: Number(dom.duration.value || 20),
-    });
-  };
-
-  dom.btnFeedStart.onclick = () => {
-    send('stream.catalog.start', {});
-  };
-
-  dom.btnFeedStop.onclick = () => {
-    send('stream.catalog.stop', {});
-  };
-
-  dom.btnJoin.onclick = () => {
-    send('auction.join', {
-      auction_id: dom.joinAuctionId.value.trim(),
-      token,
-    });
-  };
-
-  dom.btnBid.onclick = () => {
-    send('auction.place_bid', {
-      auction_id: dom.joinAuctionId.value.trim(),
-      bidder_name: dom.username.value.trim(),
-      amount: Number(dom.bidAmount.value || 0),
-      token,
-    });
-  };
-
-  dom.btnRoleAdmin.onclick = () => applyRole('admin');
-  dom.btnRoleBidder.onclick = () => applyRole('bidder');
-  dom.btnDemoAdmin.onclick = () => {
-    runQuickDemoAdmin().catch((err) => logEvent('ui.demo.error', { message: String(err) }));
-  };
-  dom.btnDemoBidder.onclick = () => {
-    runQuickDemoBidder().catch((err) => logEvent('ui.demo.error', { message: String(err) }));
-  };
-}
-
-wireControls();
-connect();
+  
+  connectWebSocket();
+});
