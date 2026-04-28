@@ -35,13 +35,16 @@
 </head>
 <body>
   <div class="container">
-    <h1>Event-Driven WebSocket UI</h1>
+    <h1>WebSocket UI</h1>
     <span id="conn-status" class="status-conn disconnected">Disconnected</span>
 
     <!-- Component A: Auction Status -->
     <div class="card">
       <h2>Component A: Auction Status</h2>
-      <p>State: <span id="auction-state" class="state waiting">WAITING</span></p>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <p>State: <span id="auction-state" class="state waiting">WAITING</span></p>
+        <span style="font-size: 1.2rem; font-weight: bold; color: #ffa600;">⏱️ <span id="auction-timer">--:--</span></span>
+      </div>
     </div>
 
     <!-- Component B: Live Bid Panel -->

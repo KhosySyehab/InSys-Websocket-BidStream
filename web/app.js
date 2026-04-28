@@ -6,10 +6,10 @@ let fetchedItemId = '';
 let token = ''; // Store backend JWT token
 let demoUser = ''; // Store generated username
 
-// DOM Elements
 const dom = {
   connStatus: document.getElementById('conn-status'),
   auctionState: document.getElementById('auction-state'),
+  auctionTimer: document.getElementById('auction-timer'),
   highestAmount: document.getElementById('highest-amount'),
   highestBidder: document.getElementById('highest-bidder'),
   eventLog: document.getElementById('event-log'),
@@ -21,6 +21,40 @@ const dom = {
   btnBid: document.getElementById('btn-bid'),
   commandResponse: document.getElementById('command-response')
 };
+
+let countdownInterval = null;
+
+function startVisualCountdown() {
+  if (countdownInterval) clearInterval(countdownInterval);
+  
+  let openedAt = localStorage.getItem('sync_auction_opened_at');
+  if (!openedAt) {
+     openedAt = Date.now().toString();
+     localStorage.setItem('sync_auction_opened_at', openedAt);
+  }
+
+  countdownInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - parseInt(openedAt)) / 1000);
+    const DURATION = 180; // Must match duration in btnOpen click
+    let remaining = DURATION - elapsed;
+
+    if (remaining <= 0) {
+      clearInterval(countdownInterval);
+      remaining = 0;
+    }
+    
+    if (dom.auctionTimer) {
+      const m = Math.floor(remaining / 60).toString().padStart(2, '0');
+      const s = (remaining % 60).toString().padStart(2, '0');
+      dom.auctionTimer.textContent = `${m}:${s}`;
+    }
+  }, 1000);
+}
+
+function stopVisualCountdown() {
+  if (countdownInterval) clearInterval(countdownInterval);
+  if (dom.auctionTimer) dom.auctionTimer.textContent = '00:00';
+}
 
 function formatRupiah(amount) {
   return `Rp${Number(amount || 0).toLocaleString('id-ID')}`;
@@ -61,6 +95,12 @@ function setAuctionState(state) {
   const stateStr = String(state).toUpperCase();
   dom.auctionState.textContent = stateStr;
   dom.auctionState.className = `state ${stateStr.toLowerCase()}`;
+
+  if (stateStr === 'OPEN') {
+     startVisualCountdown();
+  } else if (stateStr === 'CLOSED' || stateStr === 'WAITING') {
+     stopVisualCountdown();
+  }
 }
 
 function connectWebSocket() {
@@ -187,6 +227,7 @@ function handleIncomingEvent(data) {
          activeAuctionId = resultData.auction_id;
          dom.joinAuctionId.value = activeAuctionId; 
          logActivity(`Action Success: Auction Opened -> ${activeAuctionId}`);
+         localStorage.setItem('sync_auction_opened_at', Date.now().toString()); // Set absolute timer start!
          setAuctionState('OPEN');
          // Broadcast to other tabs!
          localStorage.setItem('sync_auction_id', activeAuctionId);
